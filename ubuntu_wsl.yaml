@@ -1,0 +1,106 @@
+---
+- name: Preparing Workstation
+  hosts: localhost
+  connection: local
+  tasks:
+
+    - name: Installing Linux Apps
+      become: true
+      apt:
+        name: '{{ item }}'
+        install_recommends: yes
+        state: present
+      loop:
+          - vim
+          - htop
+          - glances
+          - tldr
+          - curl
+          - wget
+          - ncdu
+          - tree
+          - apt-transport-https
+          - ca-certificates
+          - gnupg
+          - python3-pip
+          - make
+          - git
+          - bash-completion
+          - gnupg-agent
+          - zsh
+          - fonts-hack
+          - mlocate
+          - jq
+          - mtr
+          - software-properties-common #for terraform
+
+    - block:
+      - name: Verify if Oh-My-zsh is installed
+        command: test -d /home/{{ ansible_user_id }}/.oh-my-zsh
+        register: ohmyzsh
+        ignore_errors: true
+      - name: Installing Oh-My-zsh
+        shell:
+          cmd: 'curl -fsL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh | bash'
+          warn: false
+        when: ohmyzsh.rc != 0
+      - name: Changing Default Shell to ZSH
+        become: yes
+        user: 
+          name: '{{ ansible_user_id }}'
+          shell: /bin/zsh 
+      - name: Changing Default ZSH Theme to Agnoster
+        lineinfile:
+          path: /home/{{ ansible_user_id }}/.zshrc
+          regexp: '^ZSH_THEME='
+          line: 'ZSH_THEME="agnoster"'
+      - name: Creating ZSH Completion folder
+        file:
+          path: /home/{{ ansible_user_id }}/.oh-my-zsh/completions
+          state: directory
+          mode: 0755
+      - name: Adding autoload to compinit
+        lineinfile:
+          path: /home/{{ ansible_user_id }}/.zshrc
+          line: 'autoload -U compinit && compinit'
+          state: present
+
+    - name: Installing AWS CLI via pip3
+      become: true
+      pip:
+        name: awscli
+        executable: pip3
+
+    - block:
+      - name: Install Hashicorp key for Terraform install
+        become: true
+        apt_key: 
+          url: 'https://apt.releases.hashicorp.com/gpg'
+          state: present
+      - name: Install Hashicop Repository
+        become: true
+        apt_repository:
+          repo: 'deb [arch=amd64] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main'
+          state: present
+          filename: hashicorp
+      - name: Install Terraform
+        become: true
+        apt:
+          name: terraform
+
+
+    # TODO: not working yet, do a manual install: https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm
+    # - block:
+    #   # Installed at:  '/home/{{ ansible_user_id }}/lib/oracle-cli'.
+    #   # Executable at: '/home/{{ ansible_user_id }}/bin'.
+    #   # Scripts at:    '/home/{{ ansible_user_id }}/bin/oci-cli-scripts'.
+    #   - name: Verify if OCI Cli is installed
+    #     command: test /home/{{ ansible_user_id }}/bin/oci
+    #     register: oci_installed
+    #     ignore_errors: true
+    #   - name: Installing OCI Cli
+    #     shell:
+    #       cmd: 'curl https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh --output /tmp/oci_cli_install.sh && bash /tmp/oci_cli_install.sh --accept-all-defaults'
+    #       warn: false
+    #     when: oci_installed != 0 # if output is not zero, then the test command failed and oci must be installed
+
